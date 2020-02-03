@@ -6,7 +6,7 @@ import select
 import random
 
 #tag = id
-Class sensor():
+Class Sensor():
     def __init__(self, tag):
         self.tag = tag
         self.value = 0
@@ -15,53 +15,83 @@ Class sensor():
         return str(random.randint(0,100))
         
 
-def recieve_sens(sock):
-    #waits x seconds for timeout
-    
-    ready = select.select([sock], [], [], 120)
-    if ready[0]:
-        return sock.recv(1024)
-        
-    
 
 # Create a TCP/IP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setblocking(0)
 
-# Bind the socket to the port
+# Bind socket to port
 hostName = gethostbyname('0.0.0.0')
 port = 5004
 server_address = (hostName, port)
 print('starting up on %s port %s' % server_address)
-sock.bind(server_address)
+server.bind(server_address)
 # Listen for incoming connections
-sock.listen(1)
+sock.listen(5)
 
-#object reference
-sens_list = []
-hourly_record = []
+#Sockets on which to read and write from
+inputs = [server] #putting stuff into
+outputs = []      #outputting to
 
+#outgoing message queue
+messaging_queue = {}
 
+#dictionary to store all sensor values
+sens_list = {}
+hourly_record = {}
 
-while True:
-    # Wait for a connection
-    print ('waiting for a connection')
-    connection, client_address = sock.accept()
-    try:
-        print ('connection from %s', client_address)
-        break
-    except:
-        print("Something!")
-
-#We set blocking to zero
-#sock.setblocking(0)
-while True:
-    try:
-        sens = recieve_sens(sock)
-        #print(sens)
-        print('Getting value for %s' % sens)
-        connection.sendall(get_val(sens))
+while inputs:
+    print("Waiting for network event....")
+    #readable - incoming data available to read
+    #writeable - sockets free space to be written to
+    #exceptional - sockets that have an error
+    readable, writeable, exceptional = select.select(inputs, outputs, inputs)
     
-    except KeyboardInterrupt:
-        connection.close()
-        os._exit(1)  
+    for socket in readable:
+        if socket is server:
+            connection, client_address = socket.accept()
+            print("New connection from %s" % client_address)
+            connection.setblocking(0)
+            inputs.append(connection)
+            
+            message_queue[connection] = Queue.queue()
+        else:
+            sens_id = s.recv(1024)
+            if data:
+                print("Recieved %s, getting value..." % sens_id)
+                if sens_id not in sens_list:
+                    sens_list[sens_id] = Sensor(sens_id)
+                print("sending value for %s" % sens_id)
+                message_queue[socket].put(sens_list[sens_id].get_value())
+                
+                if socket not in outputs:
+                    outputs.append(socket)
+            else:
+                print("Closing %s, no new data...")
+                
+                if socket in outputs:
+                    outputs.remove(socket)
+                inputs.remove(socket)
+                socket.close()
+                
+                del message_queue[socket]
+                
+    for socket in writable:
+        try:
+            out_message = message_queue[socket].get_nowait()
+        except Queue.Empty:
+            print("output queue for %s is empty" % socket)
+            output.remove(s)
+        else:
+            socket.send(out_message)
+    
+    for socket in exceptional:
+        print("handling exception on %s" %socket)
+        inputs.remove(socket)
+        if socket in outputs:
+            outputs.remove(socket)
+        socket.close()
+        
+        del message_queue[socket]
+
             
