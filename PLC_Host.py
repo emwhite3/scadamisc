@@ -1,7 +1,7 @@
 import socket
 import sys
 import os
-import time
+from datetime import datetime
 import select
 import random
 
@@ -17,12 +17,16 @@ Class Sensor():
 def shutdown_sockets(inputs, outputs, exceptionally, messages_queue):
     print("DO SHUTDOWN SOCKETS")
 
-def get_hour():
-    
-
 def purge(hourly_record):
-    
-    
+    if now.hour > hourly_record["hour"]:
+        print("purging all sensor values....")
+        for key in hourly_record:
+            del hourly_record[key]
+            hourly_record[key] = []
+        hourly_record["hour"] = now.hour
+
+
+now = datetime.now()
 
 # Create a TCP/IP socket
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,7 +50,7 @@ messaging_queue = {}
 
 #dictionary to store all sensor values
 sens_list = {}
-hourly_record = {"hour" : get_hour()}
+hourly_record = {"hour" : now.hour}
 
 while inputs:
     print("Waiting for network event....")
