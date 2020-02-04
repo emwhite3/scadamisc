@@ -14,7 +14,15 @@ Class Sensor():
     def get_val(self):
         return str(random.randint(0,100))
         
+def shutdown_sockets(inputs, outputs, exceptionally, messages_queue):
+    print("DO SHUTDOWN SOCKETS")
 
+def get_hour():
+    
+
+def purge(hourly_record):
+    
+    
 
 # Create a TCP/IP socket
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -38,7 +46,7 @@ messaging_queue = {}
 
 #dictionary to store all sensor values
 sens_list = {}
-hourly_record = {}
+hourly_record = {"hour" : get_hour()}
 
 while inputs:
     print("Waiting for network event....")
@@ -57,12 +65,23 @@ while inputs:
             message_queue[connection] = Queue.queue()
         else:
             sens_id = s.recv(1024)
-            if data:
+            if sens_id:
+                if sens_id == 'kill':
+                    print("shutting down connection, sensors, and server....")
+                    subprocess.call("sudo shutdown now", shell=True)
+                
                 print("Recieved %s, getting value..." % sens_id)
                 if sens_id not in sens_list:
                     sens_list[sens_id] = Sensor(sens_id)
                 print("sending value for %s" % sens_id)
-                message_queue[socket].put(sens_list[sens_id].get_value())
+                curr_val = sens_list[sens_id].get_value()
+                message_queue[socket].put(curr_val)
+                
+                if sens_id not in hourly record:
+                    hourly_record[sens_id] = []
+                hourly_record[sens_id].append(curr_val)
+                
+                purge(hourly_record)
                 
                 if socket not in outputs:
                     outputs.append(socket)
