@@ -5,6 +5,9 @@ from socket import gethostbyname
 from subprocess import call
 from pathlib import Path
 
+#https://stackoverflow.com/questions/9382045/send-a-file-through-sockets-in-python
+#https://stackoverflow.com/questions/82831/how-do-i-check-whether-a-file-exists-without-exceptions
+
 #create host socket
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
