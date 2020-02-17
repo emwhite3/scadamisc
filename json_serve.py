@@ -1,6 +1,7 @@
 import socket
 import sys
 import Queue
+import select
 from socket import gethostbyname
 from subprocess import call
 from pathlib import Path
@@ -8,16 +9,31 @@ from pathlib import Path
 #https://stackoverflow.com/questions/9382045/send-a-file-through-sockets-in-python
 #https://stackoverflow.com/questions/82831/how-do-i-check-whether-a-file-exists-without-exceptions
 
-#create host socket
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def get_file():
+    file = open("master_config.json", "rb")
+    return file
 
-hostName = gethostbyname('0.0.0.0')
-port = 5004
-server_address = (hostName, port)
-server.bind(server_address)
-server.listen(10)
+def queue_json(message_queue, socket):
+    file = get_file()
+    #read file in chunks, in this case it is  read in 1024 b or 1 kb
+    data = file.read(1024)
+    while data:
+        message_queue[socket].put(data)
+        data = file.read(1024)
+    return
 
-inputs = [server] #putting stuff into
+def get_host():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    hostName = gethostbyname('0.0.0.0')
+    port = 5004
+    server_address = (hostName, port)
+    server.bind(server_address)
+    server.listen(10)
+    print("started json server on %s", server_address)
+    return server
+
+
+inputs = [get_host()] #putting stuff into
 outputs = []      #outputting to
 message_queue = {}
 
@@ -38,44 +54,17 @@ while inputs:
             
             message_queue[connection] = Queue.Queue()
         else:
-            sens_id = socket.recv(1024)
-            if sens_id:
-                
-                print("Recieved %s, getting value..." % sens_id)
-                if sens_id not in sens_list:
-                    ask_slave_devices()
-                    #sens_list[sens_id] = Sensor(sens_id)
-                print("sending value for %s" % sens_id)
-                curr_val = sens_list[sens_id].get_val()
-                message_queue[socket].put(curr_val)
-                
-                if sens_id not in hourly_record:
-                    hourly_record[sens_id] = []
-                hourly_record[sens_id].append(curr_val)
-                
-                check_purge(hourly_record)
-                
-                if socket not in outputs:
-                    outputs.append(socket)
-                #else:
-                    #print("Closing %s, no new data...")
-                    
-                    #if socket in outputs:
-                        #outputs.remove(socket)
-                    #inputs.remove(socket)
-                    #socket.close()
-                    
-                    #del message_queue[socket]
-                    
+            queue_json(message_queue, socket)
     for socket in writable:
         try:
             out_message = message_queue[socket].get_nowait()
             print("sending message!")
         except Queue.Empty:
-            continue
-            #print("output queue for %s is empty" % socket)
-            #outputs.remove(socket)
+            #                                                                                                                         continue
+            print("output queue for %s is empty" % socket)
+            outputs.remove(socket)
         else:
+            print("."),
             socket.send(out_message)
     
     for socket in exceptional:
