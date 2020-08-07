@@ -3,37 +3,39 @@ import sys
 import Queue
 import select
 from socket import gethostbyname
-from subprocess import call
+import subprocess
 from pathlib import Path
 
 #https://stackoverflow.com/questions/9382045/send-a-file-through-sockets-in-python
 #https://stackoverflow.com/questions/82831/how-do-i-check-whether-a-file-exists-without-exceptions
 
 def get_file():
-    file = open("master_config.json", "rb")
+    file = open("master_config.txt", "rb")
     return file
 
 def queue_json(message_queue, socket):
     file = get_file()
     #read file in chunks, in this case it is  read in 1024 b or 1 kb
+    print("opening json file...")
     data = file.read(1024)
     while data:
         message_queue[socket].put(data)
         data = file.read(1024)
+    print("DONE!")
     return
 
 def get_host():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     hostName = gethostbyname('0.0.0.0')
-    port = 5004
+    port = 5010
     server_address = (hostName, port)
     server.bind(server_address)
     server.listen(10)
     print("started json server on %s", server_address)
     return server
 
-
-inputs = [get_host()] #putting stuff into
+server = get_host()
+inputs = [server] #putting stuff into
 outputs = []      #outputting to
 message_queue = {}
 
@@ -51,7 +53,7 @@ while inputs:
             print("New connection from %s", client_address)
             connection.setblocking(0)
             inputs.append(connection)
-            
+            outputs.append(connection)            
             message_queue[connection] = Queue.Queue()
         else:
             queue_json(message_queue, socket)
@@ -61,8 +63,7 @@ while inputs:
             print("sending message!")
         except Queue.Empty:
             #                                                                                                                         continue
-            print("output queue for %s is empty" % socket)
-            outputs.remove(socket)
+            continue
         else:
             print("."),
             socket.send(out_message)

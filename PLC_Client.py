@@ -1,4 +1,5 @@
 #ADD ip address enter in python launch
+#Add a way to connect to hosting s
 
 import socket
 from socket import gethostbyname
@@ -29,31 +30,50 @@ def check_purge(hourly_record):
             hourly_record[key] = []
         hourly_record["hour"] = now.hour
 
+def read_sens():
+    file = open("sens_list.txt", "r+")
+    sens = []
+    for line in file:
+        sens.append(line)
+    return sens
+
+#read text file then populate list with sensor objects
+def get_sens_list(socket):
+    sens = read_sens()
+    for ident in sens:
+        sens_list[ident] = Sensor(ident)
+        print("sending value for %s" % sens_id)
+        curr_val = sens_list[ident].get_val()
+        message_queue[socket].put(curr_val)
+        
+        if sens_id not in hourly_record:
+            hourly_record[sens_id] = []
+        hourly_record[sens_id].append(curr_val)
+        
+        if socket not in outputs:
+            outputs.append(socket)
 
 now = datetime.now()
 
-# Create a TCP/IP socket
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setblocking(0)
-
-# Bind socket to port
-hostName = gethostbyname('0.0.0.0')
+# In thhis case we are connecting to the host
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host_ip = '192.168.4.10'
 port = 5004
-server_address = (hostName, port)
-print('starting up on %s port %s' % server_address)
-server.bind(server_address)
-# Listen for incoming connections
-server.listen(5)
+host_address = (host_ip, port)
+s.connect(host_address)
+
+#connect to host then add to input            
+message_queue[s] = Queue.Queue()
 
 #Sockets on which to read and write from
-inputs = [server] #putting stuff into
+inputs = [s] #putting stuff into
 outputs = []      #outputting to
 
 #outgoing message queue
 message_queue = {}
 
 #dictionary to store all sensor values
-sens_list = {}
+sens_list = get_sens_list()
 hourly_record = {"hour" : now.hour}
 
 while inputs:
@@ -64,44 +84,15 @@ while inputs:
     readable, writable, exceptional = select.select(inputs, outputs, inputs)
     
     for socket in readable:
-        if socket is server:
-            connection, client_address = socket.accept()
-            print("New connection from %s", client_address)
-            connection.setblocking(0)
-            inputs.append(connection)
+    
+        sens_id = socket.recv(1024)
+        if sens_id:
+            if sens_id == 'kill':
+                print("shutting down connection, sensors, and s....")
+                subprocess.call("sudo shutdown now", shell=True)
             
-            message_queue[connection] = Queue.Queue()
-        else:
-            sens_id = socket.recv(1024)
-            if sens_id:
-                if sens_id == 'kill':
-                    print("shutting down connection, sensors, and server....")
-                    subprocess.call("sudo shutdown now", shell=True)
-                
-                print("Recieved %s, getting value..." % sens_id)
-                if sens_id not in sens_list:
-                    sens_list[sens_id] = Sensor(sens_id)
-                    print("sending value for %s" % sens_id)
-                    curr_val = sens_list[sens_id].get_val()
-                    message_queue[socket].put(curr_val)
-                    
-                    if sens_id not in hourly_record:
-                        hourly_record[sens_id] = []
-                    hourly_record[sens_id].append(curr_val)
-                    
-                    check_purge(hourly_record)
-                    
-                    if socket not in outputs:
-                        outputs.append(socket)
-                #else:
-                    #print("Closing %s, no new data...")
-                    
-                    #if socket in outputs:
-                        #outputs.remove(socket)
-                    #inputs.remove(socket)
-                    #socket.close()
-                    
-                    #del message_queue[socket]
+            print("Recieved %s, getting value..." % sens_id)
+            message_queue[socket].put(get_sens_value(sens_id))
                     
     for socket in writable:
         try:
